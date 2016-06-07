@@ -1,0 +1,25 @@
+# Defines an image that hosts a native Docker build environment for Solaris
+# TODO: Improve stub
+
+FROM solaris:latest
+
+ENV http_proxy http://www-proxy.us.oracle.com:80
+ENV https_proxy http://www-proxy.us.oracle.com:80
+ENV HTTP_PROXY http://www-proxy.us.oracle.com:80
+ENV HTTPS_PROXY http://www-proxy.us.oracle.com:80
+
+# compile and runtime deps
+RUN pkg install --accept \
+		git \
+		gnu-coreutils \
+		gnu-make \
+		gnu-tar \
+		diagnostic/top \
+		golang \
+		library/golang/* \
+		developer/gcc-*
+
+ENV GOPATH /go/src/github.com/docker/docker/vendor:/go/:/usr/lib/gocode/1.5/
+ENV DOCKER_CROSSPLATFORMS solaris/amd64
+WORKDIR /go/src/github.com/docker/docker
+COPY . /go/src/github.com/docker/docker

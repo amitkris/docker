@@ -67,7 +67,14 @@ func TestIsArchivePathDir(t *testing.T) {
 }
 
 func TestIsArchivePathInvalidFile(t *testing.T) {
-	cmd := exec.Command("sh", "-c", "dd if=/dev/zero bs=1K count=1 of=/tmp/archive && gzip --stdout /tmp/archive > /tmp/archive.gz")
+	var bsVal string
+	if runtime.GOOS == "solaris" {
+		bsVal = "bs=1"
+	} else {
+		bsVal = "bs=1K"
+	}
+	cmdStr := fmt.Sprintf("dd if=/dev/zero %s count=1 of=/tmp/archive && gzip --stdout /tmp/archive > /tmp/archive.gz", bsVal)
+	cmd := exec.Command("sh", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Fail to create an archive file for test : %s.", output)
@@ -81,7 +88,14 @@ func TestIsArchivePathInvalidFile(t *testing.T) {
 }
 
 func TestIsArchivePathTar(t *testing.T) {
-	cmd := exec.Command("sh", "-c", "touch /tmp/archivedata && tar -cf /tmp/archive /tmp/archivedata && gzip --stdout /tmp/archive > /tmp/archive.gz")
+	var whichTar string
+	if runtime.GOOS == "solaris" {
+		whichTar = "gtar"
+	} else {
+		whichTar = "tar"
+	}
+	cmdStr := fmt.Sprintf("touch /tmp/archivedata && %s -cf /tmp/archive /tmp/archivedata && gzip --stdout /tmp/archive > /tmp/archive.gz", whichTar)
+	cmd := exec.Command("sh", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Fail to create an archive file for test : %s.", output)
