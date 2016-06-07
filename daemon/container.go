@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/docker/docker/container"
@@ -50,7 +51,13 @@ func (daemon *Daemon) GetContainer(prefixOrName string) (*container.Container, e
 		}
 		return nil, indexError
 	}
-	return daemon.containers.Get(containerID), nil
+	var cID string
+	if runtime.GOOS == "solaris" {
+		cID = containerID[:12]
+	} else {
+		cID = containerID
+	}
+	return daemon.containers.Get(cID), nil
 }
 
 // Exists returns a true if a container of the specified ID or name exists,
@@ -95,7 +102,12 @@ func (daemon *Daemon) Register(c *container.Container) error {
 		c.NewNopInputPipe()
 	}
 
-	daemon.containers.Add(c.ID, c)
+	if runtime.GOOS == "solaris" {
+		daemon.containers.Add(c.ID[:12], c)
+	} else {
+		daemon.containers.Add(c.ID, c)
+	}
+
 	daemon.idIndex.Add(c.ID)
 
 	return nil

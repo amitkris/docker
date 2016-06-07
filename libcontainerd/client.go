@@ -2,6 +2,7 @@ package libcontainerd
 
 import (
 	"fmt"
+	runt "runtime"
 	"sync"
 
 	"github.com/docker/docker/pkg/locker"
@@ -26,7 +27,12 @@ func (clnt *client) unlock(containerID string) {
 // must hold a lock for cont.containerID
 func (clnt *client) appendContainer(cont *container) {
 	clnt.mapMutex.Lock()
-	clnt.containers[cont.containerID] = cont
+	if runt.GOOS == "solaris" {
+		clnt.containers[cont.containerID[0:12]] = cont
+	} else {
+		clnt.containers[cont.containerID] = cont
+	}
+
 	clnt.mapMutex.Unlock()
 }
 func (clnt *client) deleteContainer(friendlyName string) {

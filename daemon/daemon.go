@@ -557,7 +557,7 @@ func NewDaemon(config *Config, registryService registry.Service, containerdRemot
 	sysInfo := sysinfo.New(false)
 	// Check if Devices cgroup is mounted, it is hard requirement for container security,
 	// on Linux.
-	if runtime.GOOS == "linux" && !sysInfo.CgroupDevicesEnabled {
+	if runtime.GOOS != "windows" && runtime.GOOS != "solaris" && !sysInfo.CgroupDevicesEnabled {
 		return nil, fmt.Errorf("Devices cgroup isn't mounted")
 	}
 

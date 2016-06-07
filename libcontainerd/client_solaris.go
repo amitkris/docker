@@ -1,20 +1,24 @@
 package libcontainerd
 
+import (
+	"errors"
+)
+
 type client struct {
 	clientCommon
 
 	// Platform specific properties below here.
+	remote        *remote
+	q             queue
+	exitNotifiers map[string]*exitNotifier
+	liveRestore   bool
 }
 
 func (clnt *client) AddProcess(containerID, processFriendlyName string, specp Process) error {
-	return nil
+	return errors.New("AddProcess is not supported on Solaris platform\n")
 }
 
-func (clnt *client) Create(containerID string, spec Spec, options ...CreateOption) (err error) {
-	return nil
-}
-
-func (clnt *client) Signal(containerID string, sig int) error {
+func (clnt *client) SignalProcess(containerID string, pid string, sig int) error {
 	return nil
 }
 
@@ -32,6 +36,23 @@ func (clnt *client) Resume(containerID string) error {
 
 func (clnt *client) Stats(containerID string) (*Stats, error) {
 	return nil, nil
+}
+
+func (clnt *client) getExitNotifier(containerID string) *exitNotifier {
+	clnt.mapMutex.RLock()
+	defer clnt.mapMutex.RUnlock()
+	return clnt.exitNotifiers[containerID]
+}
+
+func (clnt *client) getOrCreateExitNotifier(containerID string) *exitNotifier {
+	clnt.mapMutex.Lock()
+	w, ok := clnt.exitNotifiers[containerID]
+	defer clnt.mapMutex.Unlock()
+	if !ok {
+		w = &exitNotifier{c: make(chan struct{}), client: clnt}
+		clnt.exitNotifiers[containerID] = w
+	}
+	return w
 }
 
 // Restore is the handler for restoring a container

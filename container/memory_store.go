@@ -1,6 +1,9 @@
 package container
 
-import "sync"
+import (
+	"runtime"
+	"sync"
+)
 
 // memoryStore implements a Store in memory.
 type memoryStore struct {
@@ -25,8 +28,13 @@ func (c *memoryStore) Add(id string, cont *Container) {
 
 // Get returns a container from the store by id.
 func (c *memoryStore) Get(id string) *Container {
+	var res *Container
 	c.RLock()
-	res := c.s[id]
+	if runtime.GOOS == "solaris" {
+		res = c.s[id[:12]]
+	} else {
+		res = c.s[id]
+	}
 	c.RUnlock()
 	return res
 }

@@ -68,6 +68,9 @@ func TestIsArchivePathDir(t *testing.T) {
 
 func TestIsArchivePathInvalidFile(t *testing.T) {
 	cmd := exec.Command("sh", "-c", "dd if=/dev/zero bs=1K count=1 of=/tmp/archive && gzip --stdout /tmp/archive > /tmp/archive.gz")
+	if runtime.GOOS == "solaris" {
+		cmd = exec.Command("sh", "-c", "dd if=/dev/zero bs=1 count=1 of=/tmp/archive && gzip --stdout /tmp/archive > /tmp/archive.gz")
+	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Fail to create an archive file for test : %s.", output)

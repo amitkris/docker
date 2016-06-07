@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -127,6 +128,9 @@ func TestTCP4Proxy(t *testing.T) {
 }
 
 func TestTCP6Proxy(t *testing.T) {
+	if runtime.GOOS == "solaris" {
+		t.Skip("ipv6 unsupported for Docker on Solaris\n")
+	}
 	backend := NewEchoServer(t, "tcp", "[::1]:0")
 	defer backend.Close()
 	backend.Run()
@@ -170,6 +174,9 @@ func TestUDP4Proxy(t *testing.T) {
 }
 
 func TestUDP6Proxy(t *testing.T) {
+	if runtime.GOOS == "solaris" {
+		t.Skip("ipv6 unsupported for Docker on Solaris\n")
+	}
 	backend := NewEchoServer(t, "udp", "[::1]:0")
 	defer backend.Close()
 	backend.Run()

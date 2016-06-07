@@ -3,11 +3,27 @@
 package container
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"golang.org/x/sys/unix"
+
+	"github.com/Sirupsen/logrus"
+	"github.com/docker/docker/pkg/chrootarchive"
+	"github.com/docker/docker/pkg/stringid"
+	"github.com/docker/docker/pkg/symlink"
+	"github.com/docker/docker/pkg/system"
+	"github.com/docker/docker/utils"
 	"github.com/docker/docker/volume"
 	"github.com/docker/engine-api/types/container"
+	"github.com/opencontainers/runc/libcontainer/label"
+)
+
+const (
+	// DefaultSHMSize is the default size (64MB) of the SHM which will be mounted in the container
+	DefaultSHMSize int64 = 67108864
 )
 
 // Container holds fields specific to the Solaris implementation. See
@@ -19,38 +35,155 @@ type Container struct {
 	HostnamePath   string
 	HostsPath      string
 	ResolvConfPath string
+	SeccompProfile string
 }
 
 // ExitStatus provides exit reasons for a container.
 type ExitStatus struct {
 	// The exit code with which the container exited.
 	ExitCode int
+
+	// Whether the container encountered an OOM.
+	OOMKilled bool
 }
 
 // CreateDaemonEnvironment creates a new environment variable slice for this container.
 func (container *Container) CreateDaemonEnvironment(linkedEnv []string) []string {
-	return nil
+	fullHostname := container.Config.Hostname
+	if container.Config.Domainname != "" {
+		fullHostname = fmt.Sprintf("%s.%s", fullHostname, container.Config.Domainname)
+	}
+	// Setup environment
+	env := []string{
+		"PATH=" + system.DefaultPathEnv,
+		"HOSTNAME=" + fullHostname,
+	}
+	if container.Config.Tty {
+		env = append(env, "TERM=xterm")
+	}
+	env = append(env, linkedEnv...)
+	// because the env on the container can override certain default values
+	// we need to replace the 'env' keys where they match and append anything
+	// else.
+	env = utils.ReplaceOrAppendEnvValues(env, container.Config.Env)
+
+	return env
 }
 
 func appendNetworkMounts(container *Container, volumeMounts []volume.MountPoint) ([]volume.MountPoint, error) {
+	for _, mnt := range container.NetworkMounts() {
+		dest, err := container.GetResourcePath(mnt.Destination)
+		if err != nil {
+			return nil, err
+		}
+		volumeMounts = append(volumeMounts, volume.MountPoint{Destination: dest})
+	}
 	return volumeMounts, nil
 }
 
 // TrySetNetworkMount attempts to set the network mounts given a provided destination and
 // the path to use for it; return true if the given destination was a network mount file
 func (container *Container) TrySetNetworkMount(destination string, path string) bool {
-	return true
+	if destination == "/etc/resolv.conf" {
+		container.ResolvConfPath = path
+		return true
+	}
+	if destination == "/etc/hostname" {
+		container.HostnamePath = path
+		return true
+	}
+	if destination == "/etc/hosts" {
+		container.HostsPath = path
+		return true
+	}
+
+	return false
 }
 
 // NetworkMounts returns the list of network mounts.
 func (container *Container) NetworkMounts() []Mount {
 	var mount []Mount
+	shared := container.HostConfig.NetworkMode.IsContainer()
+	if container.ResolvConfPath != "" {
+		if _, err := os.Stat(container.ResolvConfPath); err != nil {
+			logrus.Warnf("ResolvConfPath set to %q, but can't stat this filename (err = %v); skipping", container.ResolvConfPath, err)
+		} else {
+			label.Relabel(container.ResolvConfPath, container.MountLabel, shared)
+			writable := !container.HostConfig.ReadonlyRootfs
+			if m, exists := container.MountPoints["/etc/resolv.conf"]; exists {
+				writable = m.RW
+			}
+			mount = append(mount, Mount{
+				Source:      container.ResolvConfPath,
+				Destination: "/etc/resolv.conf",
+				Writable:    writable,
+				Propagation: volume.DefaultPropagationMode,
+			})
+		}
+	}
+	if container.HostnamePath != "" {
+		if _, err := os.Stat(container.HostnamePath); err != nil {
+			logrus.Warnf("HostnamePath set to %q, but can't stat this filename (err = %v); skipping", container.HostnamePath, err)
+		} else {
+			label.Relabel(container.HostnamePath, container.MountLabel, shared)
+			writable := !container.HostConfig.ReadonlyRootfs
+			if m, exists := container.MountPoints["/etc/hostname"]; exists {
+				writable = m.RW
+			}
+			mount = append(mount, Mount{
+				Source:      container.HostnamePath,
+				Destination: "/etc/hostname",
+				Writable:    writable,
+				Propagation: volume.DefaultPropagationMode,
+			})
+		}
+	}
+	if container.HostsPath != "" {
+		if _, err := os.Stat(container.HostsPath); err != nil {
+			logrus.Warnf("HostsPath set to %q, but can't stat this filename (err = %v); skipping", container.HostsPath, err)
+		} else {
+			label.Relabel(container.HostsPath, container.MountLabel, shared)
+			writable := !container.HostConfig.ReadonlyRootfs
+			if m, exists := container.MountPoints["/etc/hosts"]; exists {
+				writable = m.RW
+			}
+			mount = append(mount, Mount{
+				Source:      container.HostsPath,
+				Destination: "/etc/hosts",
+				Writable:    writable,
+				Propagation: volume.DefaultPropagationMode,
+			})
+		}
+	}
 	return mount
 }
 
 // CopyImagePathContent copies files in destination to the volume.
 func (container *Container) CopyImagePathContent(v volume.Volume, destination string) error {
-	return nil
+	rootfs, err := symlink.FollowSymlinkInScope(filepath.Join(container.BaseFS, destination), container.BaseFS)
+	if err != nil {
+		return err
+	}
+
+	if _, err = ioutil.ReadDir(rootfs); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	id := stringid.GenerateNonCryptoID()
+	path, err := v.Mount(id)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := v.Unmount(id); err != nil {
+			logrus.Warnf("error while unmounting volume %s: %v", v.Name(), err)
+		}
+	}()
+	return copyExistingContents(rootfs, path)
 }
 
 // UnmountIpcMounts unmount Ipc related mounts.
@@ -67,9 +200,89 @@ func (container *Container) UpdateContainer(hostConfig *container.HostConfig) er
 	return nil
 }
 
+func detachMounted(path string) error {
+	return unix.Unmount(path, 0)
+}
+
 // UnmountVolumes explicitly unmounts volumes from the container.
 func (container *Container) UnmountVolumes(forceSyscall bool, volumeEventLog func(name, action string, attributes map[string]string)) error {
+	var (
+		volumeMounts []volume.MountPoint
+		err          error
+	)
+
+	for _, mntPoint := range container.MountPoints {
+		dest, err := container.GetResourcePath(mntPoint.Destination)
+		if err != nil {
+			return err
+		}
+
+		volumeMounts = append(volumeMounts, volume.MountPoint{Destination: dest, Volume: mntPoint.Volume})
+	}
+
+	// Append any network mounts to the list (this is a no-op on Windows)
+	if volumeMounts, err = appendNetworkMounts(container, volumeMounts); err != nil {
+		return err
+	}
+
+	for _, volumeMount := range volumeMounts {
+		if forceSyscall {
+			if err := detachMounted(volumeMount.Destination); err != nil {
+				logrus.Warnf("%s unmountVolumes: Failed to do lazy umount %v", container.ID, err)
+			}
+		}
+
+		if volumeMount.Volume != nil {
+			if err := volumeMount.Volume.Unmount(volumeMount.ID); err != nil {
+				return err
+			}
+
+			attributes := map[string]string{
+				"driver":    volumeMount.Volume.DriverName(),
+				"container": container.ID,
+			}
+			volumeEventLog(volumeMount.Volume.Name(), "unmount", attributes)
+		}
+	}
+
 	return nil
+}
+
+// copyExistingContents copies from the source to the destination and
+// ensures the ownership is appropriately set.
+func copyExistingContents(source, destination string) error {
+	volList, err := ioutil.ReadDir(source)
+	if err != nil {
+		return err
+	}
+	if len(volList) > 0 {
+		srcList, err := ioutil.ReadDir(destination)
+		if err != nil {
+			return err
+		}
+		if len(srcList) == 0 {
+			// If the source volume is empty, copies files from the root into the volume
+			if err := chrootarchive.CopyWithTar(source, destination); err != nil {
+				return err
+			}
+		}
+	}
+	return copyOwnership(source, destination)
+}
+
+// copyOwnership copies the permissions and uid:gid of the source file
+// to the destination file
+func copyOwnership(source, destination string) error {
+	stat, err := system.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Chown(destination, int(stat.UID()), int(stat.GID())); err != nil {
+		return err
+	}
+
+	return os.Chmod(destination, os.FileMode(stat.Mode()))
 }
 
 // TmpfsMounts returns the list of tmpfs mounts
@@ -85,7 +298,16 @@ func cleanResourcePath(path string) string {
 
 // BuildHostnameFile writes the container's hostname file.
 func (container *Container) BuildHostnameFile() error {
-	return nil
+	hostnamePath, err := container.GetRootResourcePath("hostname")
+	if err != nil {
+		return err
+	}
+	container.HostnamePath = hostnamePath
+
+	if container.Config.Domainname != "" {
+		return ioutil.WriteFile(container.HostnamePath, []byte(fmt.Sprintf("%s.%s\n", container.Config.Hostname, container.Config.Domainname)), 0644)
+	}
+	return ioutil.WriteFile(container.HostnamePath, []byte(container.Config.Hostname+"\n"), 0644)
 }
 
 // canMountFS determines if the file system for the container

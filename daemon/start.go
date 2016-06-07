@@ -141,6 +141,13 @@ func (daemon *Daemon) containerStart(container *container.Container) (err error)
 		createOptions = append(createOptions, *copts...)
 	}
 
+	if runtime.GOOS == "solaris" {
+		img, _ := daemon.LookupImage(container.Config.Image)
+		if img.Os != "solaris" {
+			return fmt.Errorf("Platform on which parent image was created is not Solaris\n")
+		}
+	}
+
 	if err := daemon.containerd.Create(container.ID, *spec, createOptions...); err != nil {
 		errDesc := grpc.ErrorDesc(err)
 		logrus.Errorf("Create container failed with error: %s", errDesc)
