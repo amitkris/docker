@@ -126,8 +126,8 @@ func (daemon *Daemon) Commit(name string, c *backend.ContainerCommitConfig) (str
 	}
 
 	// It is not possible to commit a running container on Windows
-	if runtime.GOOS == "windows" && container.IsRunning() {
-		return "", fmt.Errorf("Windows does not support commit of a running container")
+	if runtime.GOOS == "windows" || runtime.GOOS == "solaris" && container.IsRunning() {
+		return "", fmt.Errorf("%+v does not support commit of a running container", runtime.GOOS)
 	}
 
 	if c.Pause && !container.IsPaused() {

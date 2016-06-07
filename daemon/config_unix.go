@@ -13,6 +13,12 @@ import (
 	"github.com/docker/go-units"
 )
 
+const (
+	// stockRuntimeName is the reserved name/alias used to represent the
+	// OCI runtime being shipped with the docker daemon package.
+	stockRuntimeName = "runc"
+)
+
 var (
 	defaultPidFile  = "/var/run/docker.pid"
 	defaultGraph    = "/var/lib/docker"

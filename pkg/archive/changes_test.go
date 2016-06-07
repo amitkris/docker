@@ -22,6 +22,10 @@ func max(x, y int) int {
 
 func copyDir(src, dst string) error {
 	cmd := exec.Command("cp", "-a", src, dst)
+	if runtime.GOOS == "solaris" {
+		cmd = exec.Command("gcp", "-a", src, dst)
+	}
+
 	if err := cmd.Run(); err != nil {
 		return err
 	}

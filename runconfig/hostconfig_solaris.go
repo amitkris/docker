@@ -10,7 +10,7 @@ import (
 // DefaultDaemonNetworkMode returns the default network stack the daemon should
 // use.
 func DefaultDaemonNetworkMode() container.NetworkMode {
-	return container.NetworkMode("default")
+	return container.NetworkMode("solaris")
 }
 
 // IsPreDefinedNetwork indicates if a network is predefined by the daemon

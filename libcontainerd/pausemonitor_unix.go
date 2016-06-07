@@ -1,3 +1,5 @@
+// +build linux solaris
+
 package libcontainerd
 
 // pauseMonitor is helper to get notifications from pause state changes.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -26,9 +27,6 @@ const (
 	// maximum number of uploads that
 	// may take place at a time for each push.
 	defaultMaxConcurrentUploads = 5
-	// stockRuntimeName is the reserved name/alias used to represent the
-	// OCI runtime being shipped with the docker daemon package.
-	stockRuntimeName = "runc"
 )
 
 const (
@@ -194,6 +192,9 @@ func (config *Config) IsValueSet(name string) bool {
 }
 
 func parseClusterAdvertiseSettings(clusterStore, clusterAdvertise string) (string, error) {
+	if runtime.GOOS == "solaris" && (clusterAdvertise != "" || clusterStore != "") {
+		return "", fmt.Errorf("Cluster Advertise Settings not supported on Solaris\n")
+	}
 	if clusterAdvertise == "" {
 		return "", errDiscoveryDisabled
 	}

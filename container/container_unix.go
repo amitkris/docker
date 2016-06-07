@@ -1,4 +1,4 @@
-// +build linux freebsd
+// +build linux freebsd solaris
 
 package container
 
@@ -314,6 +314,7 @@ func (container *Container) UpdateContainer(hostConfig *containertypes.HostConfi
 }
 
 func detachMounted(path string) error {
+	// TODO: replace call to syscall.Unmount with unix.Unmount after sys/unix has been vendored.
 	return syscall.Unmount(path, syscall.MNT_DETACH)
 }
 

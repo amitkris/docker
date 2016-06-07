@@ -1,3 +1,5 @@
+// +build linux solaris
+
 package libcontainerd
 
 import (
@@ -9,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	runt "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -368,14 +371,18 @@ func (r *remote) runContainerdDaemon() error {
 	// Start a new instance
 	args := []string{
 		"-l", fmt.Sprintf("unix://%s", r.rpcAddr),
-		"--shim", "docker-containerd-shim",
 		"--metrics-interval=0",
 		"--start-timeout", "2m",
 		"--state-dir", filepath.Join(r.stateDir, containerdStateDir),
 	}
-	if r.runtime != "" {
-		args = append(args, "--runtime")
-		args = append(args, r.runtime)
+	if runt.GOOS == "solaris" {
+		args = append(args, "--shim", "containerd-shim", "--runtime", "runz")
+	} else {
+		args = append(args, "--shim", "docker-containerd-shim")
+		if r.runtime != "" {
+			args = append(args, "--runtime")
+			args = append(args, r.runtime)
+		}
 	}
 	if r.debugLog {
 		args = append(args, "--debug")
@@ -392,7 +399,7 @@ func (r *remote) runContainerdDaemon() error {
 	// redirect containerd logs to docker logs
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.SysProcAttr = setSysProcAttr(true)
 	cmd.Env = nil
 	// clear the NOTIFY_SOCKET from the env when starting containerd
 	for _, e := range os.Environ() {
@@ -423,6 +430,9 @@ func (r *remote) runContainerdDaemon() error {
 }
 
 func setOOMScore(pid, score int) error {
+	if runt.GOOS == "solaris" {
+		return nil
+	}
 	f, err := os.OpenFile(fmt.Sprintf("/proc/%d/oom_score_adj", pid), os.O_WRONLY, 0)
 	if err != nil {
 		return err
