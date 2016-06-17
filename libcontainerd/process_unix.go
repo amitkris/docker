@@ -12,6 +12,7 @@ import (
 	containerd "github.com/docker/containerd/api/grpc/types"
 	"github.com/docker/docker/pkg/ioutils"
 	"golang.org/x/net/context"
+	"golang.org/x/sys/unix"
 )
 
 var fdNames = map[int]string{
@@ -36,7 +37,7 @@ func (p *process) openFifos(terminal bool) (*IOPipe, error) {
 
 	for i := 0; i < 3; i++ {
 		f := p.fifo(i)
-		if err := syscall.Mkfifo(f, 0700); err != nil && !os.IsExist(err) {
+		if err := unix.Mkfifo(f, 0700); err != nil && !os.IsExist(err) {
 			return nil, fmt.Errorf("mkfifo: %s %v", f, err)
 		}
 	}

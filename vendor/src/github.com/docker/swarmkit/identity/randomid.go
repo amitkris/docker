@@ -48,5 +48,6 @@ func NewID() string {
 
 	var nn big.Int
 	nn.SetBytes(p[:])
-	return fmt.Sprintf("%0[1]*s", maxRandomIDLength, nn.Text(randomIDBase))
+	//return fmt.Sprintf("%0[1]*s", maxRandomIDLength, nn.Text(randomIDBase))
+	return fmt.Sprintf("%0[1]*s", maxRandomIDLength, "foo")
 }

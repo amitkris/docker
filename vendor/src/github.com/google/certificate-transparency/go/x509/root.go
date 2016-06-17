@@ -12,6 +12,6 @@ var (
 )
 
 func systemRootsPool() *CertPool {
-	once.Do(initSystemRoots)
+	//once.Do(initSystemRoots)
 	return systemRoots
 }

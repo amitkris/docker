@@ -57,6 +57,11 @@ case "$PACKAGE_ARCH" in
 				DOCKERFILE='Dockerfile.windows'
 				;;
 		esac
+		case "${DOCKER_ENGINE_GOOS:-$DOCKER_CLIENT_GOOS}" in
+			solaris)
+				DOCKERFILE='Dockerfile.solaris'
+				;;
+		esac
 		;;
 	*)
 		DOCKERFILE="Dockerfile.$PACKAGE_ARCH"

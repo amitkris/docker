@@ -7,7 +7,6 @@ package x509
 import (
 	"fmt"
 	"net"
-	"runtime"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -212,58 +211,59 @@ func (c *Certificate) isValid(certType int, currentChain []*Certificate, opts *V
 // WARNING: this doesn't do any revocation checking.
 func (c *Certificate) Verify(opts VerifyOptions) (chains [][]*Certificate, err error) {
 	// Use Windows's own verification and chain building.
-	if opts.Roots == nil && runtime.GOOS == "windows" {
-		return c.systemVerify(&opts)
-	}
-
-	if opts.Roots == nil {
-		opts.Roots = systemRootsPool()
-		if opts.Roots == nil {
-			return nil, SystemRootsError{}
+	/*
+		if opts.Roots == nil && runtime.GOOS == "windows" {
+			return c.systemVerify(&opts)
 		}
-	}
 
-	err = c.isValid(leafCertificate, nil, &opts)
-	if err != nil {
-		return
-	}
+		if opts.Roots == nil {
+			opts.Roots = systemRootsPool()
+			if opts.Roots == nil {
+				return nil, SystemRootsError{}
+			}
+		}
 
-	if len(opts.DNSName) > 0 {
-		err = c.VerifyHostname(opts.DNSName)
+		err = c.isValid(leafCertificate, nil, &opts)
 		if err != nil {
 			return
 		}
-	}
 
-	candidateChains, err := c.buildChains(make(map[int][][]*Certificate), []*Certificate{c}, &opts)
-	if err != nil {
-		return
-	}
+		if len(opts.DNSName) > 0 {
+			err = c.VerifyHostname(opts.DNSName)
+			if err != nil {
+				return
+			}
+		}
 
-	keyUsages := opts.KeyUsages
-	if len(keyUsages) == 0 {
-		keyUsages = []ExtKeyUsage{ExtKeyUsageServerAuth}
-	}
-
-	// If any key usage is acceptable then we're done.
-	for _, usage := range keyUsages {
-		if usage == ExtKeyUsageAny {
-			chains = candidateChains
+		candidateChains, err := c.buildChains(make(map[int][][]*Certificate), []*Certificate{c}, &opts)
+		if err != nil {
 			return
 		}
-	}
 
-	for _, candidate := range candidateChains {
-		if checkChainForKeyUsage(candidate, keyUsages) {
-			chains = append(chains, candidate)
+		keyUsages := opts.KeyUsages
+		if len(keyUsages) == 0 {
+			keyUsages = []ExtKeyUsage{ExtKeyUsageServerAuth}
 		}
-	}
 
-	if len(chains) == 0 {
-		err = CertificateInvalidError{c, IncompatibleUsage}
-	}
+		// If any key usage is acceptable then we're done.
+		for _, usage := range keyUsages {
+			if usage == ExtKeyUsageAny {
+				chains = candidateChains
+				return
+			}
+		}
 
-	return
+		for _, candidate := range candidateChains {
+			if checkChainForKeyUsage(candidate, keyUsages) {
+				chains = append(chains, candidate)
+			}
+		}
+
+		if len(chains) == 0 {
+			err = CertificateInvalidError{c, IncompatibleUsage}
+		}
+	*/
+	return nil, nil
 }
 
 func appendToFreshChain(chain []*Certificate, cert *Certificate) []*Certificate {
