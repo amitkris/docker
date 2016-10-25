@@ -144,7 +144,7 @@ clone git github.com/docker/docker-credential-helpers f72c04f1d8e71959a6d103f808
 
 # containerd
 clone git github.com/docker/containerd 52ef1ceb4b660c42cf4ea9013180a5663968d4c7
-clone git github.com/tonistiigi/fifo 8c56881ce5e63e19e2dfc495c8af0fb90916467d
+clone git github.com/tonistiigi/fifo b4c3a126bac4051ae3fa83bfcb3c60ab7a9da0dd
 
 # cluster
 clone git github.com/docker/swarmkit 3b221eb0391d34ae0b9dac65df02b5b64de6dff2
