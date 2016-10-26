@@ -116,7 +116,7 @@ if [ "$AUTO_GOPATH" ]; then
 		# sys/unix is installed outside the standard library on solaris
 		# TODO need to allow for version change, need to get version from go
 		export GO_VERSION=${GO_VERSION:-"1.7.1"}
-		export GOPATH="${GOPATH}:/usr/lib/gocode/${GO_VERSION}"
+		export GOPATH="${GOPATH}:/usr/lib/gocode/1.5"
 	fi
 fi
 
